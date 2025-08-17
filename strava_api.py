@@ -3,7 +3,8 @@ import json
 import os
 import time
 import requests
-from typing import Dict, List, Optional, Tuple
+import certifi
+from typing import Dict, List, Optional
 from dotenv import load_dotenv
 
 TOKEN_URL = "/oauth/token"
@@ -17,6 +18,13 @@ class StravaClient:
         self.tokens_file = tokens_file
         self.verbose = verbose
         self._tokens: Optional[Dict] = None
+
+        # SSL verification / CA bundle (env-driven)
+        verify_flag = os.getenv("STRAVA_VERIFY_SSL", "true").lower() in ("1", "true", "yes", "y")
+        ca_bundle = os.getenv("STRAVA_CA_BUNDLE") or certifi.where()
+        self._verify = ca_bundle if verify_flag else False
+        if self.verbose:
+            print(f"SSL verify: {verify_flag}, CA bundle: {ca_bundle if verify_flag else 'DISABLED'}")
 
     # ---------------------- Token management ----------------------
     def _load_tokens_from_disk(self) -> Optional[Dict]:
@@ -35,7 +43,6 @@ class StravaClient:
     def _have_valid_access_token(self) -> bool:
         t = self._tokens or {}
         expires_at = t.get("expires_at", 0)
-        # consider a small buffer (30 seconds)
         return bool(t.get("access_token")) and int(expires_at) > int(time.time()) + 30
 
     def _exchange_code_for_tokens(self, code: str) -> Dict:
@@ -46,7 +53,7 @@ class StravaClient:
             "code": code,
             "grant_type": "authorization_code",
         }
-        r = requests.post(url, json=payload, timeout=30)
+        r = requests.post(url, json=payload, timeout=30, verify=self._verify)
         if r.status_code != 200:
             raise RuntimeError(f"Token exchange failed: {r.status_code} {r.text}")
         tokens = r.json()
@@ -62,7 +69,7 @@ class StravaClient:
             "grant_type": "refresh_token",
             "refresh_token": refresh_token,
         }
-        r = requests.post(url, json=payload, timeout=30)
+        r = requests.post(url, json=payload, timeout=30, verify=self._verify)
         if r.status_code != 200:
             raise RuntimeError(f"Token refresh failed: {r.status_code} {r.text}")
         tokens = r.json()
@@ -71,21 +78,17 @@ class StravaClient:
         return tokens
 
     def ensure_access_token(self, auth_code: Optional[str] = None) -> str:
-        # Load from memory or disk
         if not self._tokens:
             self._tokens = self._load_tokens_from_disk()
 
-        # If we already have a valid token, return it
         if self._have_valid_access_token():
             return self._tokens["access_token"]
 
-        # If tokens exist but expired -> refresh
         if self._tokens and self._tokens.get("refresh_token"):
             self._tokens = self._refresh_access_token(self._tokens["refresh_token"])
             self._save_tokens_to_disk(self._tokens)
             return self._tokens["access_token"]
 
-        # Else, use one-time auth code (first ever run)
         if not auth_code:
             raise RuntimeError("No valid tokens found and no STRAVA_AUTH_CODE provided.")
         self._tokens = self._exchange_code_for_tokens(auth_code)
@@ -106,9 +109,8 @@ class StravaClient:
             params = {"after": after, "per_page": per_page, "page": page}
             if before is not None:
                 params["before"] = before
-            r = requests.get(url, headers=self._auth_headers(), params=params, timeout=30)
+            r = requests.get(url, headers=self._auth_headers(), params=params, timeout=30, verify=self._verify)
             if r.status_code == 429:
-                # Rate limited
                 raise RuntimeError(f"Rate limited. Headers: {r.headers}")
             if r.status_code != 200:
                 raise RuntimeError(f"Activities request failed: {r.status_code} {r.text}")

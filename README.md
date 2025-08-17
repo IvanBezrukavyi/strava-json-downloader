@@ -1,133 +1,89 @@
 
 # Strava JSON Downloader (Python)
 
-Fetch your Strava activities as JSON and (optionally) filter to **runs**. 
-Secrets are kept in `.env`. The script automatically exchanges your one-time **authorization code** for tokens and then refreshes the access token on subsequent runs.
+Отримуй свої активності зі Strava у **JSON** (за замовчуванням — тільки біг). Секрети тримаються у `.env`. 
+Перший запуск — інтерактивний OAuth **без ручного копіювання code**: скрипт сам відкриє сторінку Strava, спіймає `code`, обміняє на токени і збереже у `.tokens.json`. Далі — автоматичний refresh.
 
-## Features
-- `.env` for `client_id`, `client_secret`, and **one-time** auth `code`
-- Automatic token exchange & refresh (`.tokens.json` on disk)
-- Fetch activities in a date window (`--after`, `--before`) or by raw epoch seconds
-- Filter to **Run** type only (`--only-runs` ON by default)
-- Save full JSON to a file (`--out`) + brief console summary
-- Handles pagination (`--max-pages`, default 10; `--per-page`, default 200)
+## Можливості
+- `.env` для `client_id`, `client_secret` (+ опції для OAuth та SSL)
+- Автоматичний **обмін** одноразового `code` та **оновлення** токена (`.tokens.json`)
+- Вікно дат через локальні дати (`--after/--before`) або epoch seconds
+- Фільтр тільки **Run** (`--only-runs` за замовчуванням)
+- Пагінація (`--per-page` до 200, `--max-pages`)
+- `--append` — мердж + дедуплікація (по `activity.id`) у твій `--out`
+- **Quick summary** після кожного запуску (кількість, км, темп, найдовша, остання активність)
+- “Розумний” `--before`: якщо не заданий і вікно `after..now` порожнє — скрипт бере **останній день з результатами**
+- **VS Code Runner**: 1 клік через `launch.json`/`tasks.json`
+- **SSL-налаштування**: власний CA bundle/вимкнення перевірки (для діагностики)
 
-## 1) Create a Strava API App (if you haven't)
-- In your Strava account -> *Settings* -> *My API Application*.
-- Copy `Client ID` and `Client Secret`.
-- Generate an **Authorization Code** using Strava's OAuth (follow their docs or your existing flow).
-  > The `code` is **one-time**. After the first run the script saves `refresh_token` in `.tokens.json` and you no longer need `STRAVA_AUTH_CODE` in `.env`.
-
-## 2) Fill your `.env`
-Copy `.env.example` to `.env` and set values:
-```
-STRAVA_CLIENT_ID=172550
-STRAVA_CLIENT_SECRET=xxx_your_secret_xxx
-STRAVA_AUTH_CODE=xxx_one_time_code_xxx
-STRAVA_TOKENS_FILE=.tokens.json
-STRAVA_BASE_URL=https://www.strava.com
-```
-> After the first successful run, you can remove `STRAVA_AUTH_CODE` from `.env`.
-
-## 3) Install & Run
+## Встановлення
 ```bash
 python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
+# Windows PowerShell:
+.\.venv\Scripts\Activate.ps1
+# macOS/Linux:
+# source .venv/bin/activate
+
 pip install -r requirements.txt
-
-# Example: fetch all runs between 2025-06-06 and 2025-08-17 (local dates)
-python main.py fetch --after 2025-06-06 --before 2025-08-17 --out runs.json
-
-# Or pass epoch seconds:
-python main.py fetch --after-epoch 1749177600 --before-epoch 1755388800 --per-page 200 --out runs.json
 ```
 
-## 4) CLI Usage
+## Налаштуй `.env`
+Скопіюй `.env.example` → `.env` і заповни мінімум:
 ```
-python main.py fetch [options]
-
-Options:
-  --after YYYY-MM-DD         Start date (local). Mutually exclusive with --after-epoch
-  --before YYYY-MM-DD        End date (local, exclusive). Mutually exclusive with --before-epoch
-  --after-epoch SECONDS      Start epoch seconds (UTC)
-  --before-epoch SECONDS     End epoch seconds (UTC)
-  --per-page N               Page size (default 200, max 200 per Strava)
-  --max-pages N              Max pages to request (default 10)
-  --only-runs / --all-types  Filter to activities with type == "Run" (default: only runs)
-  --out FILE                 Save JSON to this file (default: data/activities_<timestamp>.json)
-  -v, --verbose              Print more details
+STRAVA_CLIENT_ID=...
+STRAVA_CLIENT_SECRET=...
+STRAVA_TOKENS_FILE=.tokens.json
+STRAVA_BASE_URL=https://www.strava.com
+# для інтерактивного запуску — цього досить, STRAVA_AUTH_CODE не потрібен
 ```
 
-## Notes
-- Strava returns a **15-minute** access token. We auto-refresh using the stored `refresh_token`.
-- Rate limits: 100 requests per 15 min, 1000 per day (subject to change). Script stops if rate-limited and shows headers.
-- Filtering by type happens **client-side**; Strava does not support a `type` filter on `GET /athlete/activities`.
-
-## Project Layout
+### (Опціонально) OAuth конфіг
 ```
-strava-json-downloader/
-├── .env.example
-├── README.md
-├── requirements.txt
-├── main.py
-├── strava_api.py
-└── utils.py
+STRAVA_REDIRECT_HOST=127.0.0.1
+STRAVA_REDIRECT_PORT=8723
+STRAVA_SCOPE=read,activity:read_all
+STRAVA_OPEN_BROWSER=true
+# AUTH URL можна перевизначити (зазвичай не потрібно):
+# STRAVA_AUTH_URL=https://www.strava.com/oauth/authorize
 ```
 
-## Troubleshooting
-- If you see `invalid_grant`, your one-time `code` was already used or expired. Remove `.tokens.json`, set a fresh `STRAVA_AUTH_CODE` and run again.
-- If your time window is empty, check your `after`/`before` values (UTC epoch or local dates). 
+### (Опціонально) SSL / сертифікати
+```
+# Використовувати перевірку сертифікатів (рекомендовано)
+STRAVA_VERIFY_SSL=true
+# Кастомний CA bundle (PEM), якщо корпоративний проксі підміняє TLS
+# STRAVA_CA_BUNDLE=C:/path/to/org_root_ca.pem
+```
 
-
-### Smart `--before` (за замовчуванням)
-- Якщо ти не вказуєш `--before/--before-epoch`, скрипт бере **сьогоднішній день (now)**.
-- Якщо у вікні `after..now` результатів **нема**, скрипт **автоматично відступить** до "останнього дня з результатами" і повторить запит, щоби віддати тобі найсвіжіші доступні активності.
-- Тобі достатньо завжди запускати: `python main.py fetch --after 2025-06-06 --out runs.json`.
-
-
-## Recommended one-liner (always the same)
-Run this every time to keep your JSON up to date from a fixed start date to "now":
-
+## Запуск (рекомендовано — одна і та сама команда)
 ```bash
 python main.py fetch --after 2025-06-06 --out runs.json --append
 ```
-- If there are no activities in `after..now`, the script automatically falls back to the **most recent day with results**.
-- `--append` merges with the existing `runs.json`, deduplicates by activity **id**, and keeps the latest data per activity.
-- After saving, the script prints a **quick summary**: total activities, total distance, average pace, longest run.
+Що станеться:
+- якщо немає `.tokens.json` і не задано `STRAVA_AUTH_CODE`, скрипт **відкриє браузер** на OAuth і сам перехопить `code`;
+- якщо `--before` не задано — візьме **поточний момент (now)**;
+- якщо вікно `after..now` порожнє — автоматично зсуне `before` на **останній день з даними**;
+- збереже JSON (`--append` змерджить із наявним, приберуться дублі за `id`);
+- виведе зведення (кількість, км, темп, найдовша, остання активність).
 
-### Examples
-Fetch a wider window explicitly, still appending & deduping:
-```bash
-python main.py fetch --after 2025-06-06 --before 2025-08-17 --out runs.json --append
-```
+### Приклади
+- Фіксоване вікно:
+  ```bash
+  python main.py fetch --after 2025-06-06 --before 2025-08-17 --out runs.json --append
+  ```
+- Перезапис без мерджу:
+  ```bash
+  python main.py fetch --after 2025-06-06 --out runs.json
+  ```
 
-### Output files
-- `runs.json` — merged dataset of your (Run) activities as raw Strava JSON
-- `data/activities_*.json` — ad‑hoc dumps if you don't pass `--out`
+## VS Code Runner (1‑клік)
+У папці `.vscode` вже є:
+- **Run/Debug**: *Fetch Strava runs (launch)* — обери у Run and Debug → `Ctrl+F5`.
+- **Task**: *Fetch Strava runs (task)* — Terminal → Run Task…
 
-### Notes
-- Distances are in kilometers in the summary (source: Strava `distance` is meters).
-- Average pace is calculated as `sum(moving_time) / sum(distance)` and formatted as `mm:ss min/km`.
-
-
-## VS Code Runner (1-click run)
-You can run the fetch command from VS Code without typing it each time.
-
-### Option A — Run/Debug (launch.json)
-Already included: `.vscode/launch.json` with **Fetch Strava runs (launch)**.
-1) Open the **Run and Debug** panel in VS Code.
-2) Choose **Fetch Strava runs (launch)** from the dropdown.
-3) Press **Ctrl+F5** (Run Without Debugging) or **F5** (Debug).
-
-Once selected, VS Code remembers this config — next time just hit **Ctrl+F5**.
-
-### Option B — Task (tasks.json) + hotkey
-Already included: `.vscode/tasks.json` with a task **Fetch Strava runs (task)**.
-- Run it via **Terminal → Run Task… → Fetch Strava runs (task)**.
-
-Optional: add a keyboard shortcut for one-press run.
-1) Open **Command Palette → Preferences: Open Keyboard Shortcuts (JSON)**.
-2) Add:
+(Опційно) хоткей для Task:
+1) Command Palette → **Preferences: Open Keyboard Shortcuts (JSON)**  
+2) Додай:
 ```json
 {
   "key": "ctrl+alt+r",
@@ -135,22 +91,42 @@ Optional: add a keyboard shortcut for one-press run.
   "args": "Fetch Strava runs (task)"
 }
 ```
-Press **Ctrl+Alt+R** any time to fetch & append.
 
-
-
-## One-time OAuth without copy/paste
-On the very first run, if no tokens are found and no `STRAVA_AUTH_CODE` is set,
-the script now starts a **local OAuth flow** automatically:
-- spins up a tiny HTTP server on `http://127.0.0.1:<port>/exchange_token`
-- opens your browser to Strava's consent page
-- after you click **Authorize**, the code is captured automatically and tokens are saved to `.tokens.json`
-
-Config (optional) in `.env`:
+## SSL certificate errors (Windows / proxy)
+Якщо бачиш `SSLError: certificate verify failed`:
+1) Онови CA:
+```bash
+pip install --upgrade certifi
+python -c "import certifi; print(certifi.where())"
 ```
-STRAVA_REDIRECT_HOST=127.0.0.1
-STRAVA_REDIRECT_PORT=8723
-STRAVA_SCOPE=read,activity:read_all
-STRAVA_OPEN_BROWSER=true
+2) Якщо корпоративний проксі/антивірус підміняє TLS — експортуй Root CA у `.pem` та вкажи його:
+```powershell
+$env:REQUESTS_CA_BUNDLE="C:\path\org_root_ca.pem"
 ```
-> You still need to confirm in the browser (security requirement), but no more copying the `code`.
+або у `.env`:
+```
+STRAVA_CA_BUNDLE=C:/path/to/org_root_ca.pem
+```
+3) Лише для діагностики (НЕ рекомендується):
+```
+STRAVA_VERIFY_SSL=false
+```
+
+## Структура
+```
+strava-json-downloader/
+├─ .env.example
+├─ README.md
+├─ requirements.txt
+├─ main.py
+├─ strava_api.py
+├─ oauth_flow.py
+├─ utils.py
+└─ .vscode/
+   ├─ launch.json
+   └─ tasks.json
+```
+
+## Troubleshooting
+- `invalid_grant` — одноразовий `STRAVA_AUTH_CODE` вже використаний або протермінований. Видали `.tokens.json`, задай свіжий `STRAVA_AUTH_CODE` (або пройди інтерактивний OAuth) і повтори.
+- Порожній результат — перевір `after/before` (локальні дати vs epoch). З `--before` за замовчуванням використовується `now` + fallback на останній день з даними.

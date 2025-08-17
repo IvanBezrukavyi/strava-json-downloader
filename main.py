@@ -1,3 +1,4 @@
+
 import argparse
 import json
 import os
@@ -13,7 +14,6 @@ from utils import (
     now_epoch_utc,
     exclusive_epoch_for_local_day_end,
 )
-
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Fetch Strava activities as JSON.")
@@ -53,14 +53,12 @@ def parse_args() -> argparse.Namespace:
     f.add_argument("-v", "--verbose", action="store_true", help="Verbose logs")
     return p.parse_args()
 
-
 def fmt_min_per_km(seconds_per_km: float) -> str:
     if seconds_per_km <= 0 or not (seconds_per_km == seconds_per_km):  # NaN check
         return "-"
     minutes = int(seconds_per_km // 60)
     secs = int(round(seconds_per_km % 60))
     return f"{minutes}:{secs:02d} min/km"
-
 
 def summarize(activities: List[Dict[str, Any]]) -> Dict[str, Any]:
     total = len(activities)
@@ -89,7 +87,6 @@ def summarize(activities: List[Dict[str, Any]]) -> Dict[str, Any]:
         "latest_activity_datetime": latest_dt,
     }
 
-
 def merge_dedupe(existing: Optional[List[Any]], new_items: Optional[List[Any]]) -> List[Dict[str, Any]]:
     by_id: Dict[Any, Dict[str, Any]] = {}
 
@@ -110,14 +107,12 @@ def merge_dedupe(existing: Optional[List[Any]], new_items: Optional[List[Any]]) 
     arr.sort(key=keyfunc, reverse=True)
     return arr
 
-
 def _validate_time_args(args: argparse.Namespace) -> None:
     if args.after and args.after_epoch is not None:
         raise SystemExit("Use either --after or --after-epoch, not both.")
     if args.before and args.before_epoch is not None:
         raise SystemExit("Use either --before or --before-epoch, not both.")
     if args.after:
-        # quick format check
         try:
             datetime.strptime(args.after, "%Y-%m-%d")
         except ValueError:
@@ -127,7 +122,6 @@ def _validate_time_args(args: argparse.Namespace) -> None:
             datetime.strptime(args.before, "%Y-%m-%d")
         except ValueError:
             raise SystemExit("--before must be in YYYY-MM-DD format.")
-
 
 def main() -> None:
     args = parse_args()
@@ -157,7 +151,6 @@ def main() -> None:
             print("Ensuring access token...")
         client.ensure_access_token(auth_code=auth_code)
     except RuntimeError as e:
-        # First run: no tokens + no STRAVA_AUTH_CODE -> start interactive OAuth
         msg = str(e)
         if ("No valid tokens found and no STRAVA_AUTH_CODE provided" in msg) or ("No valid tokens found" in msg):
             try:
@@ -197,9 +190,9 @@ def main() -> None:
     elif args.before:
         before = to_epoch_seconds_from_date_str(args.before)
     else:
-        before = now_epoch_utc()  # Default: 'now'
+        before = now_epoch_utc()
 
-    # Fetch (first attempt)
+    # Fetch
     if args.verbose:
         print(f"Fetching activities (after={after}, before={before})...")
     activities = client.get_activities(
@@ -210,7 +203,7 @@ def main() -> None:
         only_runs=args.only_runs,
     )
 
-    # Smart fallback: if empty and --before not specified by user, use the last day with results
+    # Smart fallback
     user_provided_before = (args.before_epoch is not None) or (args.before is not None)
     if not activities and not user_provided_before:
         if args.verbose:
@@ -240,7 +233,6 @@ def main() -> None:
     out_dir = ensure_data_dir()
     out_path = args.out or f"{out_dir}/activities_{now_stamp()}.json"
 
-    merged: List[Dict[str, Any]]
     if args.append and os.path.isfile(out_path):
         try:
             with open(out_path, "r", encoding="utf-8") as f:
@@ -250,14 +242,14 @@ def main() -> None:
         except Exception:
             existing = []
         merged = merge_dedupe(existing, activities)
+        payload = merged
     else:
         merged = merge_dedupe([], activities)
+        payload = activities
 
-    # Save
     with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(merged if args.append else activities, f, indent=2, ensure_ascii=False)
+        json.dump(payload, f, indent=2, ensure_ascii=False)
 
-    # Summary
     summary = summarize(merged if args.append else activities)
     print(f"Fetched {len(activities)} new activities{' (runs only)' if args.only_runs else ''}.")
     if args.append:
@@ -265,7 +257,6 @@ def main() -> None:
     else:
         print(f"Saved to {out_path}")
     print("Quick summary:", json.dumps(summary, indent=2))
-
 
 if __name__ == "__main__":
     main()
