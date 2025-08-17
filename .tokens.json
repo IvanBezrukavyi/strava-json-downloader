@@ -1,7 +1,7 @@
 {
   "token_type": "Bearer",
   "expires_at": 1755440702,
-  "expires_in": 21600,
+  "expires_in": 17635,
   "refresh_token": "d0ee2d0fccea09a8cdad688bb65403c1e95c2847",
   "access_token": "3971cf6bf3e7ec78872c46e87bf86b4761fe188b",
   "athlete": {
