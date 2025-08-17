@@ -6,6 +6,8 @@ __pycache__/
 .env
 *.env
 data/
+# Token file
+.tokens.json
 # VS Code settings
 .vscode/
 # OS generated files
