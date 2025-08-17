@@ -1,0 +1,13 @@
+# .gitignore for strava-json-downloader
+# Sensitive and config files
+runs.json
+*.pyc
+__pycache__/
+.env
+*.env
+data/
+# VS Code settings
+.vscode/
+# OS generated files
+.DS_Store
+Thumbs.db
