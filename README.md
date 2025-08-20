@@ -217,7 +217,6 @@ If you hit `SSLError: certificate verify failed`:
 
 | Symptom | Why | Fix |
 |---|---|---|
-| `File not found` when using the Desktop icon | Wrong project path hardcoded in `.bat`/`.vbs` | Update the path to your actual project folder and re-run `CreateStravaShortcut.vbs` |
 | `main.py: No such file or directory` | Running from the wrong directory | `cd` into the folder that contains `main.py` |
 | `Missing credentials. Run: python main.py init` | No `client_id/secret` in keychain or env | Run `python main.py init` and enter your values |
 | Browser opens but no redirect | Port blocked/in use, firewall | Set `STRAVA_REDIRECT_PORT` to another value (e.g., 8724) and retry |
@@ -241,7 +240,3 @@ Keep real secrets out of Git; tokens live outside the repo by default.
 
 ## License
 MIT (or your preferred license).
-
----
-
-> Want CSV/Excel export, charts, or weekly/monthly rollups? Open an issue—I can add a reporting module on top of the JSON output.
