@@ -7,7 +7,7 @@ This project follows **security best practices**: secrets are stored in the **OS
 - [Features](#features)
 - [Architecture & Security](#architecture--security)
 - [Requirements](#requirements)
-- [📌 Core Prerequisites](#core-prerequisites)
+- [Core Prerequisites](#core-prerequisites)
 - [Installation](#installation)
 - [Initial Setup (`init`)](#initial-setup-init)
 - [Running (`fetch`)](#running-fetch)
