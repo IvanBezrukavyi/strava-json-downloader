@@ -1,7 +1,7 @@
-
 python-dotenv==1.0.1
 requests==2.32.3
 python-dateutil==2.9.0.post0
 pytz==2024.1
 certifi==2024.7.4
+keyring>=24
 python-certifi-win32; sys_platform == 'win32'
