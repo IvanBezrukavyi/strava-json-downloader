@@ -58,7 +58,7 @@ project/
 
 ---
 
-## 📌 Core Prerequisites
+## Core Prerequisites
 
 Before running this project, users must obtain **client_id** and **client_secret** from Strava.
 
