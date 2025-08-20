@@ -1,4 +1,4 @@
-# Strava JSON Downloader (secure)
+# Strava JSON Downloader
 
 A small utility to export your **Strava** activities as **JSON**.  
 This project follows **security best practices**: secrets are stored in the **OS keychain** (Credential Manager / Keychain / Secret Service), and OAuth tokens are kept **outside the repository**.
@@ -239,4 +239,4 @@ Keep real secrets out of Git; tokens live outside the repo by default.
 ---
 
 ## License
-MIT (or your preferred license).
+MIT
